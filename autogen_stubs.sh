@@ -48,6 +48,10 @@ generate_opencl() {
   python3 -c "import tinygrad.runtime.autogen.opencl"
 }
 
+generate_nir() {
+  clang2py nir.h -o "$BASE/nir.py" -l /home/gonsolo/work/mesa/build/src/nouveau/vulkan/libvulkan_nouveau.so -k cdefstum
+}
+
 generate_hip() {
   clang2py /opt/rocm/include/hip/hip_ext.h /opt/rocm/include/hip/hiprtc.h \
   /opt/rocm/include/hip/hip_runtime_api.h /opt/rocm/include/hip/driver_types.h \
@@ -489,6 +493,7 @@ elif [ "$1" == "pci" ]; then generate_pci
 elif [ "$1" == "vfio" ]; then generate_vfio
 elif [ "$1" == "webgpu" ]; then generate_webgpu
 elif [ "$1" == "libusb" ]; then generate_libusb
+elif [ "$1" == "nir" ]; then generate_nir
 elif [ "$1" == "all" ]; then generate_opencl; generate_hip; generate_comgr; generate_cuda; generate_nvrtc; generate_hsa; generate_kfd; generate_nv; generate_amd; generate_io_uring; generate_libc; generate_am; generate_webgpu
 else echo "usage: $0 <type>"
 fi
