@@ -4,30 +4,22 @@ from tinygrad.engine.jit import MultiGraphRunner
 from tinygrad.uop.ops import Ops, UOp
 from tinygrad.runtime.autogen.nir import nir_instr, nir_instr_type, nir_instr_type_intrinsic, nir_instr_type_undef
 
-# A mapping for some common UOp types to NIR instruction types
 uop_to_nir_type = {
     Ops.DEFINE_GLOBAL: nir_instr_type_intrinsic,
-    # Add other mappings here as needed, for example:
     # Ops.ALU: nir_instr_type_alu,
     # Ops.LOAD: ...
 }
-
-
-# ...
 
 def convert_uop_to_nir_instr(uop: UOp) -> nir_instr:
   """
   Converts a single Tinygrad UOp to a nir_instr structure.
   """
-  # 1. Create a new nir_instr instance
   nir_inst = nir_instr()
 
-  # 2. Map the UOp's op to the nir_instr_type enum
   try:
-    # Now nir_instr_type_intrinsic is correctly defined
     uop_to_nir_type = {
         Ops.DEFINE_GLOBAL: nir_instr_type_intrinsic,
-        # Add other mappings here
+        # ...
     }
     nir_inst.type = uop_to_nir_type[uop.op]
   except KeyError:
