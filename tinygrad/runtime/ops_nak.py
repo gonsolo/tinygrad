@@ -15,6 +15,7 @@ class NakRenderer(Renderer):
     options = mesa3d.nir_shader_compiler_options()
     builder = mesa3d.nir_builder_init_simple_shader(stage, options, "simple")
     main = mesa3d.nir_shader_get_function_for_name(builder.shader, "main");
+    mesa3d.glsl_type_singleton_init_or_ref()
 
     # Store a mapping of UOp arguments to NIR variables
     nir_vars = {}
@@ -27,7 +28,6 @@ class NakRenderer(Renderer):
         counter += 1
         if uop.op == Ops.DEFINE_GLOBAL:
             var_type = uop.dtype
-            print(var_type)
             var_binding = uop.arg
             var_size = var_type.count
 
@@ -38,13 +38,11 @@ class NakRenderer(Renderer):
             else:
                 raise NotImplementedError(f"Unsupported dtype: {var_type.base}")
 
-            #type = mesa3d.glsl_array_type(glsl_base_type, var_size, 0)
-            #nir_var = mesa3d.nir_variable_create(
-            #    builder.shader,
-            #    mesa3d.nir_var_mem_ssbo,
-            #    type,
-            #    f"ssbo_var_{var_binding}"
-            #  )
+            nir_type = mesa3d.glsl_array_type(glsl_base_type, var_size, 0)
+            nir_var = mesa3d.nir_variable_create(builder.shader,
+                                                 mesa3d.nir_var_mem_ssbo,
+                                                 nir_type,
+                                                 f"ssbo_var_{var_binding}")
 
             #nir_var.data.binding = binding
             #nir_var.data.explicit_binding = True
