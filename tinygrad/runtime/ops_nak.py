@@ -1,32 +1,53 @@
 import ctypes
+import mesa3d
 from tinygrad.device import Compiled, Compiler, Renderer, Allocator
+from tinygrad.dtype import dtypes
 from tinygrad.engine.jit import MultiGraphRunner
 from tinygrad.uop.ops import Ops, UOp
-from tinygrad.runtime.autogen.nir import nir_instr, nir_instr_type, nir_instr_type_intrinsic, nir_instr_type_undef
+
+DTYPE_TO_BIT_SIZE = {
+    dtypes.float32: 32,
+    dtypes.int32: 32,
+    # ..
+}
+
+mem_ctx = mesa3d.ralloc_context(None)
+stage = mesa3d.gl_shader_stage.COMPUTE
+options = mesa3d.nir_shader_compiler_options()
+si = mesa3d.shader_info()
+si.stage = stage
+shader = mesa3d.nir_shader_create(mem_ctx, stage, options, si)
+mesa3d.ralloc_free(mem_ctx)
+
+#name = "bla"
+#function = nir_function_create(shader, name)
+#function_impl = nir_function_impl_create(nir_function)
+#builder = nir_builder_create(function_impl)
+# libnir_mesa.nir_builder_init(ctypes.byref(nir_builder_inst), ...)
 
 uop_to_nir_type = {
-    Ops.DEFINE_GLOBAL: nir_instr_type_intrinsic,
+    #Ops.DEFINE_GLOBAL: nir_instr_type_intrinsic,
     # Ops.ALU: nir_instr_type_alu,
     # Ops.LOAD: ...
 }
 
-def convert_uop_to_nir_instr(uop: UOp) -> nir_instr:
-  """
-  Converts a single Tinygrad UOp to a nir_instr structure.
-  """
-  nir_inst = nir_instr()
-
-  try:
-    uop_to_nir_type = {
-        Ops.DEFINE_GLOBAL: nir_instr_type_intrinsic,
-        # ...
-    }
-    nir_inst.type = uop_to_nir_type[uop.op]
-  except KeyError:
-    print(f"Warning: No mapping for UOp op {uop.op}. Using default type.")
-    nir_inst.type = nir_instr_type_undef
-
-  return nir_inst
+#def convert_uop_to_nir_instr(uop: UOp) -> nir_instr:
+#  """
+#  Converts a single Tinygrad UOp to a nir_instr structure.
+#  """
+#  nir_inst = nir_instr()
+#
+#  try:
+#    uop_to_nir_type = {
+#        Ops.DEFINE_GLOBAL: nir_instr_type_intrinsic,
+#        # ...
+#    }
+#    nir_inst.type = uop_to_nir_type[uop.op]
+#  except KeyError:
+#    print(f"Warning: No mapping for UOp op {uop.op}. Using default type.")
+#    nir_inst.type = nir_instr_type_undef
+#
+#  return nir_inst
 
 class NakRenderer(Renderer):
   device = "NAK"
@@ -34,12 +55,12 @@ class NakRenderer(Renderer):
   has_local = False
   def render(self, uops:list) -> str:
     result = ""
-    seen = False
-    for uop in uops:
-      if not seen:
-        nir_inst = convert_uop_to_nir_instr(uop)
-        print(uop, nir_inst)
-      seen = True
+    #seen = False
+    #for uop in uops:
+      #if not seen:
+      #nir_inst = convert_uop_to_nir_instr(uop)
+      #print(uop, nir_inst)
+      #seen = True
     return result
 
 class NakProgram:
