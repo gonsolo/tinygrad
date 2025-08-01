@@ -5,63 +5,60 @@ from tinygrad.dtype import dtypes
 from tinygrad.engine.jit import MultiGraphRunner
 from tinygrad.uop.ops import Ops, UOp
 
-DTYPE_TO_BIT_SIZE = {
-    dtypes.float32: 32,
-    dtypes.int32: 32,
-    # ..
-}
-
-mem_ctx = mesa3d.ralloc_context(None)
-stage = mesa3d.gl_shader_stage.COMPUTE
-options = mesa3d.nir_shader_compiler_options()
-si = mesa3d.shader_info()
-si.stage = stage
-shader = mesa3d.nir_shader_create(mem_ctx, stage, options, si)
-mesa3d.ralloc_free(mem_ctx)
-
-#name = "bla"
-#function = nir_function_create(shader, name)
-#function_impl = nir_function_impl_create(nir_function)
-#builder = nir_builder_create(function_impl)
-# libnir_mesa.nir_builder_init(ctypes.byref(nir_builder_inst), ...)
-
-uop_to_nir_type = {
-    #Ops.DEFINE_GLOBAL: nir_instr_type_intrinsic,
-    # Ops.ALU: nir_instr_type_alu,
-    # Ops.LOAD: ...
-}
-
-#def convert_uop_to_nir_instr(uop: UOp) -> nir_instr:
-#  """
-#  Converts a single Tinygrad UOp to a nir_instr structure.
-#  """
-#  nir_inst = nir_instr()
-#
-#  try:
-#    uop_to_nir_type = {
-#        Ops.DEFINE_GLOBAL: nir_instr_type_intrinsic,
-#        # ...
-#    }
-#    nir_inst.type = uop_to_nir_type[uop.op]
-#  except KeyError:
-#    print(f"Warning: No mapping for UOp op {uop.op}. Using default type.")
-#    nir_inst.type = nir_instr_type_undef
-#
-#  return nir_inst
+import mesa3d
 
 class NakRenderer(Renderer):
   device = "NAK"
-  code_for_op = {k:lambda:None for k in [Ops.EXP2, Ops.LOG2, Ops.SIN, Ops.SQRT]}
-  has_local = False
-  def render(self, uops:list) -> str:
-    result = ""
-    #seen = False
-    #for uop in uops:
-      #if not seen:
-      #nir_inst = convert_uop_to_nir_instr(uop)
-      #print(uop, nir_inst)
-      #seen = True
-    return result
+
+  def render(self, uops: list) -> str:
+    stage = mesa3d.gl_shader_stage.COMPUTE
+    options = mesa3d.nir_shader_compiler_options()
+    builder = mesa3d.nir_builder_init_simple_shader(stage, options, "simple")
+    main = mesa3d.nir_shader_get_function_for_name(builder.shader, "main");
+
+    # Store a mapping of UOp arguments to NIR variables
+    nir_vars = {}
+
+    counter = 0
+    # Loop through all uops and process them
+    for uop in uops:
+        if counter == 0:
+            print(uop)
+        counter += 1
+        if uop.op == Ops.DEFINE_GLOBAL:
+            var_type = uop.dtype
+            print(var_type)
+            var_binding = uop.arg
+            var_size = var_type.count
+
+            if var_type.base == dtypes.int:
+                glsl_base_type = mesa3d.glsl_int_type()
+            elif var_type.base == dtypes.float:
+                glsl_base_type = mesa3d.glsl_float_type()
+            else:
+                raise NotImplementedError(f"Unsupported dtype: {var_type.base}")
+
+            #type = mesa3d.glsl_array_type(glsl_base_type, var_size, 0)
+            #nir_var = mesa3d.nir_variable_create(
+            #    builder.shader,
+            #    mesa3d.nir_var_mem_ssbo,
+            #    type,
+            #    f"ssbo_var_{var_binding}"
+            #  )
+
+            #nir_var.data.binding = binding
+            #nir_var.data.explicit_binding = True
+
+            ## Store the variable in our mapping for later use
+            #nir_vars[var_binding] = nir_var
+
+            #print(f"Created NIR variable for binding {var_binding} of type {var_type}")
+
+    # After the loop, finalize the builder
+    #mesa3d.nir_builder_finalize_simple_shader(builder.shader)
+
+    mesa3d.nir_validate_shader(builder.shader, None)
+    return "Ok"
 
 class NakProgram:
   def __init__(self, name:str, lib:bytes): pass
