@@ -20,12 +20,8 @@ class NakRenderer(Renderer):
     # Store a mapping of UOp arguments to NIR variables
     nir_vars = {}
 
-    counter = 0
-    # Loop through all uops and process them
+    printed_once = False
     for uop in uops:
-        if counter == 0:
-            print(uop)
-        counter += 1
         if uop.op == Ops.DEFINE_GLOBAL:
             var_type = uop.dtype
             var_binding = uop.arg
@@ -44,16 +40,15 @@ class NakRenderer(Renderer):
                                                  nir_type,
                                                  f"ssbo_var_{var_binding}")
 
-            #nir_var.data.binding = binding
-            #nir_var.data.explicit_binding = True
+            nir_var.data.binding = var_binding
+            nir_var.data.explicit_binding = True
 
             ## Store the variable in our mapping for later use
-            #nir_vars[var_binding] = nir_var
-
-            #print(f"Created NIR variable for binding {var_binding} of type {var_type}")
-
-    # After the loop, finalize the builder
-    #mesa3d.nir_builder_finalize_simple_shader(builder.shader)
+            nir_vars[var_binding] = nir_var
+        else:
+            if not printed_once:
+                print(f"Unhandled uop: {uop}")
+                printed_once = True
 
     mesa3d.nir_validate_shader(builder.shader, None)
     return "Ok"
