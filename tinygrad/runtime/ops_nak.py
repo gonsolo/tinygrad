@@ -7,6 +7,7 @@ from tinygrad.uop.ops import Ops, UOp
 
 import mesa3d
 
+
 class NakRenderer(Renderer):
   device = "NAK"
 
@@ -17,10 +18,10 @@ class NakRenderer(Renderer):
     main = mesa3d.nir_shader_get_function_for_name(builder.shader, "main");
     mesa3d.glsl_type_singleton_init_or_ref()
 
-    # Store a mapping of UOp arguments to NIR variables
+    ssa_defs = {}
     nir_vars = {}
+    unhandled_uops = set()
 
-    printed_once = False
     for uop in uops:
         if uop.op == Ops.DEFINE_GLOBAL:
             var_type = uop.dtype
@@ -39,17 +40,28 @@ class NakRenderer(Renderer):
                                                  mesa3d.nir_var_mem_ssbo,
                                                  nir_type,
                                                  f"ssbo_var_{var_binding}")
-
             nir_var.data.binding = var_binding
             nir_var.data.explicit_binding = True
 
-            ## Store the variable in our mapping for later use
             nir_vars[var_binding] = nir_var
-        else:
-            if not printed_once:
-                print(f"Unhandled uop: {uop}")
-                printed_once = True
 
+        elif uop.op == Ops.CONST:
+            const_val = uop.arg
+            const_dtype = uop.dtype
+
+            if const_dtype == dtypes.int:
+                const_def = mesa3d.nir_imm_int(builder, int(const_val))
+            elif const_dtype == dtypes.float:
+                const_def = mesa3d.nir_imm_float(builder, float(const_val))
+            else:
+                raise NotImplementedError(f"Unsupported constant type: {const_dtype}")
+
+            ssa_defs[uop] = const_def
+
+        else:
+            unhandled_uops.add(uop.op)
+
+    print(unhandled_uops)
     mesa3d.nir_validate_shader(builder.shader, None)
     return "Ok"
 
