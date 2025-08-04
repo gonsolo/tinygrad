@@ -59,46 +59,45 @@ class NakRenderer(Renderer):
 
             ssa_defs[uop] = const_def
 
-        elif uop.op == Ops.INDEX:
-            ssbo_uop = uop.src[0]
-            index_uop = uop.src[1]
+        #elif uop.op == Ops.INDEX:
+        #    ssbo_uop = uop.src[0]
+        #    index_uop = uop.src[1]
 
-            # Look up the SSBO variable by its binding
-            ssbo_var = nir_vars.get(ssbo_uop.arg)
-            if ssbo_var is None:
-                raise ValueError(f"SSBO variable for binding {ssbo_uop.arg} not found.")
+        #    # Look up the SSBO variable by its binding
+        #    ssbo_var = nir_vars.get(ssbo_uop.arg)
+        #    if ssbo_var is None:
+        #        raise ValueError(f"SSBO variable for binding {ssbo_uop.arg} not found.")
 
-            # Get the SSA definition for the index
-            #index_def = ssa_defs.get(index_uop)
-            #if index_def is None:
-            #    raise ValueError(f"SSA definition for index UOp not found.")
+        #    # Get the SSA definition for the index
+        #    index_def = ssa_defs.get(index_uop)
+        #    if index_def is None:
+        #        raise ValueError(f"SSA definition for index UOp not found.")
 
-            ssbo_type = ssbo_var.type
-            if ssbo_type.is_array():
-                array_element_type = ssbo_type.array
-                while array_element_type and array_element_type.is_array():
-                    array_element_type = array_element_type.array
-                if array_element_type:
-                    print(f"The base element type of the SSBO is: {array_element_type.name}")
-            else:
-                print("The variable is not an array.")
-            ## Get the size of a single element in bytes
-            #element_size = mesa3d.glsl_get_explicit_size(element_type, True)
-            #
-            ## Calculate the byte offset: index * element_size
-            #offset_def = mesa3d.nir_imul_imm(builder, index_def, element_size)
-            #
-            ## Load the value from the SSBO at the calculated offset
-            ## nir_load_ssbo needs num_components and bit_size
-            #num_components = mesa3d.glsl_get_vector_elements(element_type)
-            #bit_size = mesa3d.glsl_get_bit_size(element_type)
+        #    ssbo_type = ssbo_var.type
+        #    if ssbo_type.is_array():
+        #        array_element_type = ssbo_type.array
+        #        while array_element_type and array_element_type.is_array():
+        #            array_element_type = array_element_type.array
+        #        if array_element_type:
+        #            element_type = array_element_type
+        #    else:
+        #        element_type = ssbo_type
+        #    # Get the size of a single element in bytes
+        #    element_size = mesa3d.glsl_get_explicit_size(element_type, True)
 
-            #loaded_val_def = mesa3d.nir_intrinsic_load_ssbo(builder, num_components, bit_size,
-            #                                               mesa3d.nir_load_var(builder, ssbo_var),
-            #                                               offset_def)
+        #    # Calculate the byte offset: index * element_size
+        #    offset_def = mesa3d.nir_imul_imm(builder, index_def, element_size)
 
-            ## Store the loaded value's SSA definition for later use
-            #ssa_defs[uop] = loaded_val_def
+        #    # Load the value from the SSBO at the calculated offset
+        #    num_components = mesa3d.glsl_get_vector_elements(element_type)
+        #    bit_size = mesa3d.glsl_get_bit_size(element_type)
+
+        #    loaded_val_def = mesa3d.nir_load_ssbo(builder, num_components, bit_size,
+        #                                          mesa3d.nir_load_var(builder, ssbo_var),
+        #                                          offset_def)
+
+        #    # Store the loaded value's SSA definition for later use
+        #    ssa_defs[uop] = loaded_val_def
 
         else:
             if not printed:
