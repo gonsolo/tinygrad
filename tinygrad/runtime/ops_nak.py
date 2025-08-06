@@ -111,9 +111,25 @@ class NakRenderer(Renderer):
         src_defs = [self._get_or_create_ssa_def(src, builder, ssa_defs, deref_instrs, nir_vars) for src in uop.src]
         ssa_def = mesa3d.nir_iadd(builder, src_defs[0], src_defs[1])
 
+    elif uop.op == Ops.MUL:
+        src_defs = [self._get_or_create_ssa_def(src, builder, ssa_defs, deref_instrs, nir_vars) for src in uop.src]
+        ssa_def = mesa3d.nir_imul(builder, src_defs[0], src_defs[1])
+
     elif uop.op == Ops.LOAD:
         deref_chain = self._get_or_create_deref_instr(uop.src[0], builder, deref_instrs, nir_vars, ssa_defs)
         ssa_def = mesa3d.nir_load_deref(builder, deref_chain)
+
+    elif uop.op == Ops.SPECIAL:
+        src_defs = [self._get_or_create_ssa_def(src, builder, ssa_defs, deref_instrs, nir_vars) for src in uop.src]
+
+        if uop.arg[0] == 'lidx0':
+            lidx_def = mesa3d.nir_load_local_invocation_id(builder)
+            ssa_def = mesa3d.nir_channel(builder, lidx_def, uop.arg[1])
+        elif isinstance(uop.arg, tuple) and uop.arg[0] == 'gidx0':
+            gidx_def = mesa3d.nir_load_global_invocation_id(builder, 32)
+            ssa_def = mesa3d.nir_channel(builder, gidx_def, uop.arg[1])
+        else:
+            raise NotImplementedError(f"Handling for SPECIAL UOp with arg '{uop.arg}' is not yet implemented.")
 
     else:
         raise NotImplementedError(f"Unsupported UOp type: {uop.op}")
