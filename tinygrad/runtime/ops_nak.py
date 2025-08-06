@@ -57,10 +57,10 @@ class NakRenderer(Renderer):
           raise NotImplementedError(f"Unsupported dtype: {var_type.base}")
 
         nir_type = mesa3d.glsl_array_type(glsl_base_type, var_size, 0)
-    #    nir_var = mesa3d.nir_variable_create(builder.shader,
-    #                                         mesa3d.nir_var_mem_ssbo,
-    #                                         nir_type,
-    #                                         f"ssbo_var_{var_binding}")
+        nir_var = mesa3d.nir_variable_create(builder.shader,
+                                             mesa3d.nir_var_mem_ssbo,
+                                             nir_type,
+                                             f"ssbo_var_{var_binding}")
     #    nir_var.data.binding = var_binding
     #    nir_var.data.explicit_binding = True
 
