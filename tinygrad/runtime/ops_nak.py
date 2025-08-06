@@ -49,12 +49,12 @@ class NakRenderer(Renderer):
         var_binding = uop.arg
         var_size = var_type.count
 
-    #    if var_type.base == dtypes.int:
-    #      glsl_base_type = mesa3d.glsl_int_type()
-    #    elif var_type.base == dtypes.float:
-    #      glsl_base_type = mesa3d.glsl_float_type()
-    #    else:
-    #      raise NotImplementedError(f"Unsupported dtype: {var_type.base}")
+        if var_type.base == dtypes.int:
+          glsl_base_type = mesa3d.glsl_int_type()
+        elif var_type.base == dtypes.float:
+          glsl_base_type = mesa3d.glsl_float_type()
+        else:
+          raise NotImplementedError(f"Unsupported dtype: {var_type.base}")
 
     #    nir_type = mesa3d.glsl_array_type(glsl_base_type, var_size, 0)
     #    nir_var = mesa3d.nir_variable_create(builder.shader,
