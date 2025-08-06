@@ -122,14 +122,45 @@ class NakRenderer(Renderer):
     elif uop.op == Ops.SPECIAL:
         src_defs = [self._get_or_create_ssa_def(src, builder, ssa_defs, deref_instrs, nir_vars) for src in uop.src]
 
-        if uop.arg[0] == 'lidx0':
+        if isinstance(uop.arg, tuple) and uop.arg[0] == 'lidx0':
             lidx_def = mesa3d.nir_load_local_invocation_id(builder)
+            print(f"gonsolo lidx0 channel index: {uop.arg[1]}")
             ssa_def = mesa3d.nir_channel(builder, lidx_def, uop.arg[1])
         elif isinstance(uop.arg, tuple) and uop.arg[0] == 'gidx0':
+
+            global_shape = ...
+
             gidx_def = mesa3d.nir_load_global_invocation_id(builder, 32)
-            ssa_def = mesa3d.nir_channel(builder, gidx_def, uop.arg[1])
+
+            ssa_def = mesa3d.nir_channel(builder, gidx_def, 0)
+
+            for i in range(1, len(global_shape)):
+                current_id = None
+                if i < 3:
+                    current_id = mesa3d.nir_channel(builder, gidx_def, i)
+                else:
+                    current_id = mesa3d.nir_imm_int(builder, 0)
+
+                ssa_def = mesa3d.nir_imul_imm(builder, ssa_def, global_shape[i])
+                ssa_def = mesa3d.nir_iadd(builder, ssa_def, current_id)
+
         else:
             raise NotImplementedError(f"Handling for SPECIAL UOp with arg '{uop.arg}' is not yet implemented.")
+
+    elif uop.op == Ops.WHERE:
+        cond_def = self._get_or_create_ssa_def(uop.src[0], builder, ssa_defs, deref_instrs, nir_vars)
+        true_def = self._get_or_create_ssa_def(uop.src[1], builder, ssa_defs, deref_instrs, nir_vars)
+        false_def = self._get_or_create_ssa_def(uop.src[2], builder, ssa_defs, deref_instrs, nir_vars)
+
+        # In NIR, the condition for a select instruction must be a boolean.
+        # We assume the condition UOp produces a boolean-like integer.
+        # This converts it to a boolean value.
+        bool_cond = mesa3d.nir_ine_imm(builder, cond_def, 0)
+        ssa_def = mesa3d.nir_bcsel(builder, bool_cond, true_def, false_def)
+
+    elif uop.op == Ops.CMPLT:
+        src_defs = [self._get_or_create_ssa_def(src, builder, ssa_defs, deref_instrs, nir_vars) for src in uop.src]
+        ssa_def = mesa3d.nir_ilt(builder, src_defs[0], src_defs[1])
 
     else:
         raise NotImplementedError(f"Unsupported UOp type: {uop.op}")

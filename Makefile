@@ -1,6 +1,6 @@
 VARS=LD_PRELOAD=/usr/lib/libasan.so.8 ASAN_OPTIONS=detect_leaks=0 PYTHONPATH=/home/gonsolo/work/mesa/build/src/compiler DEBUG=2 NAK=1
-TEST=test/test_setitem.py::TestSetitemLoop::test_arange
-#TEST=test/test_nak.py::TestNak::test_hello
+#TEST=test/test_setitem.py::TestSetitemLoop::test_arange
+TEST=test/test_nak.py::TestNak::test_hello
 all:
 	$(VARS) pytest -s $(TEST)
 edit:
