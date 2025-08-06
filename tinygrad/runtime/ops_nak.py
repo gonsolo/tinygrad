@@ -39,8 +39,6 @@ class NakRenderer(Renderer):
     nir_vars = {}
     unhandled_uops = set()
     handled_uops = set()
-    next_uop = None
-    printed = False
 
     print(f"Number of uops: {len(uops)}")
     #for idx, uop in enumerate(uops):
@@ -71,7 +69,40 @@ class NakRenderer(Renderer):
 
         nir_vars[var_binding] = nir_var
 
-      #elif uop.op == Ops.INDEX:
+      elif uop.op == Ops.CONST:
+        handled_uops.add(uop.op)
+
+        const_val = uop.arg
+        const_dtype = uop.dtype
+
+        if const_dtype == dtypes.int:
+          const_def = mesa3d.nir_imm_int(builder, int(const_val))
+        elif const_dtype == dtypes.float:
+          const_def = mesa3d.nir_imm_float(builder, float(const_val))
+        else:
+          raise NotImplementedError(f"Unsupported constant type: {const_dtype}")
+
+        ssa_defs[uop] = const_def
+
+      elif uop.op == Ops.INDEX:
+        unhandled_uops.add(uop.op)
+        pass
+      elif uop.op == Ops.SINK:
+        unhandled_uops.add(uop.op)
+        pass
+      elif uop.op == Ops.LOAD:
+        unhandled_uops.add(uop.op)
+        pass
+      elif uop.op == Ops.STORE:
+        unhandled_uops.add(uop.op)
+        pass
+      elif uop.op == Ops.INDEX:
+        unhandled_uops.add(uop.op)
+        pass
+      elif uop.op == Ops.ADD:
+        unhandled_uops.add(uop.op)
+        pass
+
       #  ssbo_uop = uop.src[0]
       #  index_uop = uop.src[1]
 
@@ -113,22 +144,8 @@ class NakRenderer(Renderer):
     #        dest_def = self.get_or_create_ssa_def(dest_uop, builder, ssa_defs)
     #        src_def = self.get_or_create_ssa_def(src_uop_val, builder, ssa_defs)
 
-      else:
-    #    try:
-    #        ssa_def = self.get_or_create_ssa_def(uop, builder, ssa_defs)
-    #        if ssa_def:
-    #            ssa_defs[uop] = ssa_def
-    #    except ValueError:
-    #        if not printed:
-    #          print(uop)
-    #          printed = True
-            if next_uop == None:
-                next_uop = uop.op
-            unhandled_uops.add(uop.op)
-
     print(f"Handled uops: {handled_uops}")
     print(f"Unhandled uops: {unhandled_uops}")
-    print(f"Next to implement: {next_uop}")
 
     #mesa3d.nir_validate_shader(builder.shader, None)
     return "Ok"
