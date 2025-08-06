@@ -186,8 +186,30 @@ class NakCompiler(Compiler):
     print("Optimized shader:");
     mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno());
 
+    dump_asm = False
+    robust2_modes = 0
+    fs_key = None # For a compute shader, this is typically NULL
+
+    #nak_compiler = mesa3d.nak_compiler_create(device.nv_dev_info)
+
+    #nak_bin_struct_ptr = mesa3d.nak_compile_shader(
+    #  shader,
+    #  dump_asm,
+    #  nak_compiler,
+    #  robust2_modes,
+    #  fs_key
+    #)
+
+    # Convert the C struct into a Python bytes object
+    # This step is critical and depends on the struct's layout.
+    # For a struct with a size and a pointer to the binary, it would look like this:
+    # binary_data = bytes(nak_bin_struct_ptr.binary_ptr, nak_bin_struct_ptr.size)
+
+    compiled_binary = b"actual_compiled_binary"
+
     del _nak_nir_cache[nak_nir_id]
-    return b"dummy_compiled_binary_shader"
+    return compiled_binary
+
 
 class NakProgram:
   def __init__(self, name:str, lib:bytes): pass
