@@ -1,5 +1,6 @@
 import ctypes
 import mesa3d
+import sys
 from tinygrad.device import Compiled, Compiler, Renderer, Allocator
 from tinygrad.dtype import dtypes
 from tinygrad.engine.jit import MultiGraphRunner
@@ -52,6 +53,19 @@ class NakRenderer(Renderer):
         src_def = self._get_or_create_ssa_def(src_uop, builder, ssa_defs, deref_instrs, nir_vars)
 
         mesa3d.nir_store_deref(builder, dst_deref, src_def, 0xff)
+
+        print("Original shader:")
+        mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno())
+
+        mesa3d.nir_metadata_require(builder.impl, mesa3d.nir_metadata_block_index | mesa3d.nir_metadata_dominance);
+        mesa3d.nir_opt_algebraic(builder.shader);
+        mesa3d.nir_opt_constant_folding(builder.shader);
+        mesa3d.nir_opt_dce(builder.shader);
+
+        print("Optimized shader:");
+        mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno());
+
+        mesa3d.ralloc_free(builder.shader);
 
     return "Ok"
 
