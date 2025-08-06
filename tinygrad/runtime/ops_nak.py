@@ -85,8 +85,32 @@ class NakRenderer(Renderer):
         ssa_defs[uop] = const_def
 
       elif uop.op == Ops.INDEX:
-        unhandled_uops.add(uop.op)
-        pass
+        handled_uops.add(uop.op)
+        ssbo_uop = uop.src[0]
+        index_uop = uop.src[1]
+
+        ssbo_var = nir_vars.get(ssbo_uop.arg)
+        if ssbo_var is None:
+          raise ValueError(f"SSBO variable for binding {ssbo_uop.arg} not found.")
+
+        index_def = self.get_or_create_ssa_def(index_uop, builder, ssa_defs)
+
+        element_type = ssbo_var.type
+        while element_type.is_array():
+            element_type = element_type.array
+
+        element_size = mesa3d.glsl_get_explicit_size(element_type, True)
+        offset_def = mesa3d.nir_imul_imm(builder, index_def, element_size)
+
+        num_components = mesa3d.glsl_get_vector_elements(element_type)
+        bit_size = mesa3d.glsl_get_bit_size(element_type)
+
+        ssbo_deref = mesa3d.nir_build_deref_var(builder, ssbo_var)
+        array_deref = mesa3d.nir_build_deref_array(builder, ssbo_deref, index_def)
+        loaded_val_def = mesa3d.nir_load_deref(builder, array_deref)
+
+        ssa_defs[uop] = loaded_val_def
+
       elif uop.op == Ops.SINK:
         unhandled_uops.add(uop.op)
         pass
@@ -102,31 +126,6 @@ class NakRenderer(Renderer):
       elif uop.op == Ops.ADD:
         unhandled_uops.add(uop.op)
         pass
-
-      #  ssbo_uop = uop.src[0]
-      #  index_uop = uop.src[1]
-
-      #  ssbo_var = nir_vars.get(ssbo_uop.arg)
-      #  if ssbo_var is None:
-      #    raise ValueError(f"SSBO variable for binding {ssbo_uop.arg} not found.")
-
-      #  index_def = self.get_or_create_ssa_def(index_uop, builder, ssa_defs)
-
-      #  element_type = ssbo_var.type
-      #  while element_type.is_array():
-      #      element_type = element_type.array
-
-      #  element_size = mesa3d.glsl_get_explicit_size(element_type, True)
-      #  offset_def = mesa3d.nir_imul_imm(builder, index_def, element_size)
-
-      #  num_components = mesa3d.glsl_get_vector_elements(element_type)
-      #  bit_size = mesa3d.glsl_get_bit_size(element_type)
-
-      #  loaded_val_def = mesa3d.nir_load_ssbo(builder, num_components, bit_size,
-      #                                        mesa3d.nir_load_var(builder, ssbo_var),
-      #                                        offset_def)
-
-      #  ssa_defs[uop] = loaded_val_def
 
     #  elif uop.op == Ops.STORE:
     #    dest_uop = uop.src[0]
