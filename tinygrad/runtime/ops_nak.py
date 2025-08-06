@@ -1,10 +1,13 @@
 import ctypes
 import mesa3d
 import sys
+import uuid
 from tinygrad.device import Compiled, Compiler, Renderer, Allocator
 from tinygrad.dtype import dtypes
 from tinygrad.engine.jit import MultiGraphRunner
 from tinygrad.uop.ops import Ops, UOp
+
+_nak_nir_cache = {}
 
 class NakRenderer(Renderer):
   device = "NAK"
@@ -54,20 +57,11 @@ class NakRenderer(Renderer):
 
         mesa3d.nir_store_deref(builder, dst_deref, src_def, 0xff)
 
-        print("Original shader:")
-        mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno())
+        #mesa3d.ralloc_free(builder.shader);
 
-        mesa3d.nir_metadata_require(builder.impl, mesa3d.nir_metadata_block_index | mesa3d.nir_metadata_dominance);
-        mesa3d.nir_opt_algebraic(builder.shader);
-        mesa3d.nir_opt_constant_folding(builder.shader);
-        mesa3d.nir_opt_dce(builder.shader);
-
-        print("Optimized shader:");
-        mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno());
-
-        mesa3d.ralloc_free(builder.shader);
-
-    return "Ok"
+        nak_nir_id = str(uuid.uuid4())
+        _nak_nir_cache[nak_nir_id] = {'builder': builder, 'options': options}
+        return nak_nir_id
 
   def _get_or_create_deref_instr(self, uop, builder, deref_instrs, nir_vars, ssa_defs):
     deref_instr = deref_instrs.get(uop)
@@ -168,6 +162,33 @@ class NakRenderer(Renderer):
     ssa_defs[uop] = ssa_def
     return ssa_def
 
+class NakCompiler(Compiler):
+  # Set the target device
+  device = "NAK"
+
+  def compile(self, prg: str) -> bytes:
+    nak_nir_id = prg
+    cached_data = _nak_nir_cache.get(nak_nir_id)
+    if cached_data is None:
+      raise ValueError("Could not find the cached data in the global cache.")
+
+    builder = cached_data['builder']
+    options = cached_data['options']
+
+    print("Original shader:")
+    mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno())
+
+    mesa3d.nir_metadata_require(builder.impl, mesa3d.nir_metadata_block_index | mesa3d.nir_metadata_dominance);
+    mesa3d.nir_opt_algebraic(builder.shader);
+    mesa3d.nir_opt_constant_folding(builder.shader);
+    mesa3d.nir_opt_dce(builder.shader);
+
+    print("Optimized shader:");
+    mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno());
+
+    del _nak_nir_cache[nak_nir_id]
+    return b"dummy_compiled_binary_shader"
+
 class NakProgram:
   def __init__(self, name:str, lib:bytes): pass
   def __call__(self, *bufs, global_size:tuple[int,int,int]=(1,1,1), local_size:tuple[int,int,int]=(1,1,1), vals:tuple[int, ...]=(), wait=False):
@@ -183,5 +204,5 @@ class NakGraph(MultiGraphRunner):
   def __call__(self, input_rawbuffers, var_vals, wait=False) -> float|None: return 1e-3
 
 class NakDevice(Compiled):
-  def __init__(self, device:str): super().__init__(device, NakAllocator(self), NakRenderer(), Compiler(), NakProgram, NakGraph)
+  def __init__(self, device:str): super().__init__(device, NakAllocator(self), NakRenderer(), NakCompiler(), NakProgram, NakGraph)
 
