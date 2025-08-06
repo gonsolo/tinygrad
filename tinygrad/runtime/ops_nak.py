@@ -190,6 +190,7 @@ class NakCompiler(Compiler):
     robust2_modes = 0
     fs_key = None # For a compute shader, this is typically NULL
 
+    # Use pyo3 for device info
     #nak_compiler = mesa3d.nak_compiler_create(device.nv_dev_info)
 
     #nak_bin_struct_ptr = mesa3d.nak_compile_shader(
@@ -209,7 +210,6 @@ class NakCompiler(Compiler):
 
     del _nak_nir_cache[nak_nir_id]
     return compiled_binary
-
 
 class NakProgram:
   def __init__(self, name:str, lib:bytes): pass
