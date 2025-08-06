@@ -38,13 +38,18 @@ class NakRenderer(Renderer):
     ssa_defs = {}
     nir_vars = {}
     unhandled_uops = set()
+    handled_uops = set()
+    next_uop = None
     printed = False
 
+    print(f"Number of uops: {len(uops)}")
     #for idx, uop in enumerate(uops):
     #  print(f"UOp at index {idx}: {uop.op}, dtype: {uop.dtype}, arg: {uop.arg}, src: {uop.src}")
 
     for uop in uops:
       if uop.op == Ops.DEFINE_GLOBAL:
+        handled_uops.add(uop.op)
+
         var_type = uop.dtype
         var_binding = uop.arg
         var_size = var_type.count
@@ -61,40 +66,36 @@ class NakRenderer(Renderer):
                                              mesa3d.nir_var_mem_ssbo,
                                              nir_type,
                                              f"ssbo_var_{var_binding}")
-    #    nir_var.data.binding = var_binding
-    #    nir_var.data.explicit_binding = True
+        nir_var.data.binding = var_binding
+        nir_var.data.explicit_binding = True
 
-    #    nir_vars[var_binding] = nir_var
+        nir_vars[var_binding] = nir_var
 
-    #  elif uop.op == Ops.INDEX:
-    #    ssbo_uop = uop.src[0]
-    #    index_uop = uop.src[1]
+      #elif uop.op == Ops.INDEX:
+      #  ssbo_uop = uop.src[0]
+      #  index_uop = uop.src[1]
 
-    #    ssbo_var = nir_vars.get(ssbo_uop.arg)
-    #    if ssbo_var is None:
-    #      raise ValueError(f"SSBO variable for binding {ssbo_uop.arg} not found.")
+      #  ssbo_var = nir_vars.get(ssbo_uop.arg)
+      #  if ssbo_var is None:
+      #    raise ValueError(f"SSBO variable for binding {ssbo_uop.arg} not found.")
 
-    #    index_def = self.get_or_create_ssa_def(index_uop, builder, ssa_defs)
+      #  index_def = self.get_or_create_ssa_def(index_uop, builder, ssa_defs)
 
-    #    ssbo_type = ssbo_var.type
-    #    if ssbo_type.is_array():
-    #      element_type = ssbo_type.array
-    #      while element_type and element_type.is_array():
-    #        element_type = element_type.array
-    #    else:
-    #      element_type = ssbo_type
+      #  element_type = ssbo_var.type
+      #  while element_type.is_array():
+      #      element_type = element_type.array
 
-    #    element_size = mesa3d.glsl_get_explicit_size(element_type, True)
-    #    offset_def = mesa3d.nir_imul_imm(builder, index_def, element_size)
+      #  element_size = mesa3d.glsl_get_explicit_size(element_type, True)
+      #  offset_def = mesa3d.nir_imul_imm(builder, index_def, element_size)
 
-    #    num_components = mesa3d.glsl_get_vector_elements(element_type)
-    #    bit_size = mesa3d.glsl_get_bit_size(element_type)
+      #  num_components = mesa3d.glsl_get_vector_elements(element_type)
+      #  bit_size = mesa3d.glsl_get_bit_size(element_type)
 
-    #    loaded_val_def = mesa3d.nir_load_ssbo(builder, num_components, bit_size,
-    #                                          mesa3d.nir_load_var(builder, ssbo_var),
-    #                                          offset_def)
+      #  loaded_val_def = mesa3d.nir_load_ssbo(builder, num_components, bit_size,
+      #                                        mesa3d.nir_load_var(builder, ssbo_var),
+      #                                        offset_def)
 
-    #    ssa_defs[uop] = loaded_val_def
+      #  ssa_defs[uop] = loaded_val_def
 
     #  elif uop.op == Ops.STORE:
     #    dest_uop = uop.src[0]
@@ -112,7 +113,7 @@ class NakRenderer(Renderer):
     #        dest_def = self.get_or_create_ssa_def(dest_uop, builder, ssa_defs)
     #        src_def = self.get_or_create_ssa_def(src_uop_val, builder, ssa_defs)
 
-    #  else:
+      else:
     #    try:
     #        ssa_def = self.get_or_create_ssa_def(uop, builder, ssa_defs)
     #        if ssa_def:
@@ -121,7 +122,13 @@ class NakRenderer(Renderer):
     #        if not printed:
     #          print(uop)
     #          printed = True
-    #        unhandled_uops.add(uop.op)
+            if next_uop == None:
+                next_uop = uop.op
+            unhandled_uops.add(uop.op)
+
+    print(f"Handled uops: {handled_uops}")
+    print(f"Unhandled uops: {unhandled_uops}")
+    print(f"Next to implement: {next_uop}")
 
     #mesa3d.nir_validate_shader(builder.shader, None)
     return "Ok"
