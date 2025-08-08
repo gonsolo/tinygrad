@@ -2,10 +2,42 @@ import ctypes
 import mesa3d
 import sys
 import uuid
+from tinygrad.runtime.autogen.drm import drmGetDevices2, drmFreeDevices, struct_drmDevice, uint32_t
 from tinygrad.device import Compiled, Compiler, Renderer, Allocator
 from tinygrad.dtype import dtypes
 from tinygrad.engine.jit import MultiGraphRunner
 from tinygrad.uop.ops import Ops, UOp
+
+drmGetDevices2.argtypes = [uint32_t, ctypes.POINTER(ctypes.POINTER(struct_drmDevice)), ctypes.c_int32]
+drmGetDevices2.restype = ctypes.c_int32
+
+drmFreeDevices.argtypes = [ctypes.POINTER(ctypes.POINTER(struct_drmDevice)), ctypes.c_int32]
+drmFreeDevices.restype = None
+
+def find_drm_devices():
+    """
+    Finds and prints information about available DRM devices.
+    """
+    # 1. First call to get the number of devices
+    num_devices = drmGetDevices2(0, None, 0)
+    if num_devices <= 0:
+        print("No DRM devices found.")
+        return
+
+    # 2. Allocate memory for the pointers
+    devices_ptr_array = (ctypes.POINTER(struct_drmDevice) * num_devices)()
+
+    # 3. Second call to get the devices
+    num_devices = drmGetDevices2(0, devices_ptr_array, num_devices)
+
+    print(f"Found {num_devices} DRM device(s):")
+    for i in range(num_devices):
+        # ... your code to process the devices ...
+        pass
+
+   # 4. Free the allocated memory
+    if devices_ptr_array:
+        drmFreeDevices(devices_ptr_array, num_devices)
 
 _nak_nir_cache = {}
 
@@ -190,7 +222,7 @@ class NakCompiler(Compiler):
     robust2_modes = 0
     fs_key = None # For a compute shader, this is typically NULL
 
-    # Use pyo3 for device info
+    find_drm_devices()
     #nak_compiler = mesa3d.nak_compiler_create(device.nv_dev_info)
 
     #nak_bin_struct_ptr = mesa3d.nak_compile_shader(

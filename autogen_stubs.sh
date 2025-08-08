@@ -466,6 +466,23 @@ generate_libusb() {
   python3 -c "import tinygrad.runtime.autogen.libusb"
 }
 
+generate_drm() {
+  cat << EOF > drm_stub.h
+  #include <stdint.h>
+  #include <libdrm/drm.h>
+
+  struct drmVersion;
+  struct drmDevice;
+
+  extern int drmGetDevices2(uint32_t flags, struct drmDevice *devices[], int max_devices);
+  void drmFreeDevices(struct drmDevice *devices[], int count);
+EOF
+
+  clang2py --clang-args="-I/usr/lib/clang/20/include" drm_stub.h -l/usr/lib/libdrm.so.2 -o "$BASE/drm.py"
+
+  rm drm_stub.h
+}
+
 if [ "$1" == "opencl" ]; then generate_opencl
 elif [ "$1" == "hip" ]; then generate_hip
 elif [ "$1" == "comgr" ]; then generate_comgr
@@ -489,6 +506,7 @@ elif [ "$1" == "pci" ]; then generate_pci
 elif [ "$1" == "vfio" ]; then generate_vfio
 elif [ "$1" == "webgpu" ]; then generate_webgpu
 elif [ "$1" == "libusb" ]; then generate_libusb
+elif [ "$1" == "drm" ]; then generate_drm
 elif [ "$1" == "all" ]; then generate_opencl; generate_hip; generate_comgr; generate_cuda; generate_nvrtc; generate_hsa; generate_kfd; generate_nv; generate_amd; generate_io_uring; generate_libc; generate_am; generate_webgpu
 else echo "usage: $0 <type>"
 fi
