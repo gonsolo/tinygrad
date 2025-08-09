@@ -266,16 +266,8 @@ class NakCompiler(Compiler):
     builder = cached_data['builder']
     options = cached_data['options']
 
-    print("Original shader:")
-    mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno())
-
-    mesa3d.nir_metadata_require(builder.impl, mesa3d.nir_metadata_block_index | mesa3d.nir_metadata_dominance);
-    mesa3d.nir_opt_algebraic(builder.shader);
-    mesa3d.nir_opt_constant_folding(builder.shader);
-    mesa3d.nir_opt_dce(builder.shader);
-
-    print("Optimized shader:");
-    mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno());
+    #print("Original shader:")
+    #mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno())
 
     dump_asm = False
     robust2_modes = mesa3d.nir_variable_mode(0)
@@ -294,13 +286,33 @@ class NakCompiler(Compiler):
         nak_compiler = mesa3d.nak_compiler_create(info)
         print("NAK Compiler created successfully!")
 
-        nak_bin_struct_ptr = mesa3d.nak_compile_shader(
-          builder.shader,
-          dump_asm,
-          nak_compiler,
-          robust2_modes,
-          fs_key
-        )
+        # Pass to lower variables to SSA form. This is the crucial step.
+        mesa3d.nir_lower_vars_to_ssa(builder.shader)
+        
+        # After lowering, run cleanup and optimization passes.
+        mesa3d.nir_opt_dce(builder.shader)
+        mesa3d.nir_opt_algebraic(builder.shader)
+        mesa3d.nir_opt_constant_folding(builder.shader)
+
+        #NIR_PASS(_, nir, nir_lower_variable_initializers, nir_var_function_temp);
+        #NIR_PASS(_, nir, nir_lower_returns);
+        #NIR_PASS(_, nir, nir_inline_functions);
+        #NIR_PASS(_, nir, nir_opt_deref);
+
+        #NIR_PASS(_, nir, nir_lower_vars_to_ssa);
+        #NIR_PASS(_, nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
+        #NIR_PASS(_, nir, nir_copy_prop);
+        #NIR_PASS(_, nir, nir_opt_dce);
+        #NIR_PASS(_, nir, nir_opt_cse);
+        #NIR_PASS(_, nir, nir_opt_gcm, true);
+
+        #nir_opt_peephole_select_options peephole_select_options = {};
+        #peephole_select_options.limit = 1;
+        #NIR_PASS(_, nir, nir_opt_peephole_select, &peephole_select_options);
+        #NIR_PASS(_, nir, nir_opt_dce);
+
+
+        nak_bin_struct_ptr = mesa3d.nak_compile_shader(builder.shader, dump_asm, nak_compiler, robust2_modes, fs_key)
 
     else:
         print("\nNo suitable Nouveau device found. Cannot create NAK compiler.")
