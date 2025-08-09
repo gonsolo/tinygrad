@@ -2,42 +2,101 @@ import ctypes
 import mesa3d
 import sys
 import uuid
-from tinygrad.runtime.autogen.drm import drmGetDevices2, drmFreeDevices, struct_drmDevice, uint32_t
+from tinygrad.runtime.autogen.drm import drmGetDevices2, drmFreeDevices, struct__drmDevice, uint32_t
 from tinygrad.device import Compiled, Compiler, Renderer, Allocator
 from tinygrad.dtype import dtypes
 from tinygrad.engine.jit import MultiGraphRunner
 from tinygrad.uop.ops import Ops, UOp
 
-drmGetDevices2.argtypes = [uint32_t, ctypes.POINTER(ctypes.POINTER(struct_drmDevice)), ctypes.c_int32]
+drmGetDevices2.argtypes = [uint32_t, ctypes.POINTER(ctypes.POINTER(struct__drmDevice)), ctypes.c_int32]
 drmGetDevices2.restype = ctypes.c_int32
 
-drmFreeDevices.argtypes = [ctypes.POINTER(ctypes.POINTER(struct_drmDevice)), ctypes.c_int32]
+drmFreeDevices.argtypes = [ctypes.POINTER(ctypes.POINTER(struct__drmDevice)), ctypes.c_int32]
 drmFreeDevices.restype = None
+
+
+import ctypes
+import mesa3d
+import sys
+import uuid
+from tinygrad.runtime.autogen.drm import drmGetDevices2, drmFreeDevices, struct__drmDevice, uint32_t
+
+# Ensure constants are defined globally or imported
+# (These should ideally come from your clang2py generated bindings if -k cdefstum is used)
+DRM_NODE_RENDER = 2
+DRM_BUS_PCI = 0
+
+# You might need to adjust this depending on how mesa3d._drmDevice is actually defined or aliased
+# If the pybind11 binding expects a specific type for the 'drm_device' argument,
+# this alias might still be needed, but it depends on the pybind11 side.
+# If nouveau_ws_device_new_wrapper in C++ takes uintptr_t, then this Python alias is not needed.
+# mesa3d._drmDevice = struct__drmDevice # This line is likely not needed if using uintptr_t in C++ wrapper
 
 def find_drm_devices():
     """
-    Finds and prints information about available DRM devices.
+    Finds and returns the first suitable Nouveau device.
+    Returns the nouveau_ws_device object or None if not found.
     """
-    # 1. First call to get the number of devices
-    num_devices = drmGetDevices2(0, None, 0)
+    # Allocate space for device pointers
+    MAX_DEVICES = 64
+    devices_ptr_array_type = ctypes.POINTER(struct__drmDevice) * MAX_DEVICES
+    devices_ptr_array = devices_ptr_array_type()
+
+    # Call drmGetDevices2
+    # Ensure drmGetDevices2's argtypes and restype are set correctly in your autogen/drm.py
+    # or before calling it the first time. Example:
+    # drmGetDevices2.argtypes = [uint32_t, ctypes.POINTER(ctypes.POINTER(struct__drmDevice)), ctypes.c_int32]
+    # drmGetDevices2.restype = ctypes.c_int32
+    num_devices = drmGetDevices2(0, devices_ptr_array, MAX_DEVICES)
+
     if num_devices <= 0:
         print("No DRM devices found.")
-        return
+        return None
 
-    # 2. Allocate memory for the pointers
-    devices_ptr_array = (ctypes.POINTER(struct_drmDevice) * num_devices)()
-
-    # 3. Second call to get the devices
-    num_devices = drmGetDevices2(0, devices_ptr_array, num_devices)
-
-    print(f"Found {num_devices} DRM device(s):")
+    found_nouveau_device = None
     for i in range(num_devices):
-        # ... your code to process the devices ...
-        pass
+        device_ptr = devices_ptr_array[i] # This is the ctypes pointer (LP_struct__drmDevice)
 
-   # 4. Free the allocated memory
-    if devices_ptr_array:
-        drmFreeDevices(devices_ptr_array, num_devices)
+        # Check if the pointer is valid before dereferencing
+        if not device_ptr:
+            continue
+
+        device = device_ptr.contents # Dereference to get the struct__drmDevice object
+
+        # 1. Check for a render node
+        has_render_node = (device.available_nodes & (1 << DRM_NODE_RENDER)) != 0
+
+        ## 2. Check the bus type
+        is_pci_bus = device.bustype == DRM_BUS_PCI
+
+        ## 3. Check the PCI vendor ID
+        is_nvidia_vendor = False
+        if is_pci_bus and device.deviceinfo.pci: # Ensure pci is not null before accessing contents
+            vendor_id = device.deviceinfo.pci.contents.vendor_id
+            is_nvidia_vendor = vendor_id == 0x10de
+
+        # Combine the checks to identify a potential Nouveau device
+        if has_render_node and is_pci_bus and is_nvidia_vendor:
+            print(f"Found a potential Nouveau device at index {i}!")
+
+            # Pass the memory address of the ctypes pointer's value
+            # This relies on your pybind11 wrapper for nouveau_ws_device_new accepting uintptr_t
+            device_address = ctypes.cast(device_ptr, ctypes.c_void_p)
+            found_nouveau_device = mesa3d.nouveau_ws_device_new(device_address.value)
+
+            if found_nouveau_device:
+                print(f"Successfully created a new nouveau device: {found_nouveau_device}")
+                # If you only want the first one, return immediately
+                # Otherwise, you could store them in a list and return the list
+                drmFreeDevices(devices_ptr_array, num_devices) # Free devices before returning
+                return found_nouveau_device
+            else:
+                print(f"Failed to create nouveau_ws_device for device at index {i}.")
+        else:
+            print(f"Device at index {i} is not a Nouveau device (render_node={has_render_node}, pci_bus={is_pci_bus}, nvidia_vendor={is_nvidia_vendor}).")
+
+    drmFreeDevices(devices_ptr_array, num_devices) # Free devices if loop completes without finding one
+    return None # No suitable device found
 
 _nak_nir_cache = {}
 
@@ -219,19 +278,33 @@ class NakCompiler(Compiler):
     mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno());
 
     dump_asm = False
-    robust2_modes = 0
+    robust2_modes = mesa3d.nir_variable_mode(0)
     fs_key = None # For a compute shader, this is typically NULL
 
-    find_drm_devices()
-    #nak_compiler = mesa3d.nak_compiler_create(device.nv_dev_info)
+    # --- Main part of your script ---
+    print("Searching for DRM devices...")
+    nouveau_device = find_drm_devices()
+    
+    if nouveau_device:
+        print("\nDRM device found. Proceeding with compiler creation.")
+        # Use the returned nouveau_device object
+        # This line assumes 'nouveau_device' has an attribute 'nv_dev_info' as expected by nak_compiler_create
+        # You might need to adjust this access based on the actual structure of nouveau_ws_device
+        info = nouveau_device.info
+        nak_compiler = mesa3d.nak_compiler_create(info)
+        print("NAK Compiler created successfully!")
 
-    #nak_bin_struct_ptr = mesa3d.nak_compile_shader(
-    #  shader,
-    #  dump_asm,
-    #  nak_compiler,
-    #  robust2_modes,
-    #  fs_key
-    #)
+        nak_bin_struct_ptr = mesa3d.nak_compile_shader(
+          builder.shader,
+          dump_asm,
+          nak_compiler,
+          robust2_modes,
+          fs_key
+        )
+
+    else:
+        print("\nNo suitable Nouveau device found. Cannot create NAK compiler.")
+
 
     # Convert the C struct into a Python bytes object
     # This step is critical and depends on the struct's layout.

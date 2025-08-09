@@ -467,20 +467,11 @@ generate_libusb() {
 }
 
 generate_drm() {
-  cat << EOF > drm_stub.h
-  #include <stdint.h>
-  #include <libdrm/drm.h>
-
-  struct drmVersion;
-  struct drmDevice;
-
-  extern int drmGetDevices2(uint32_t flags, struct drmDevice *devices[], int max_devices);
-  void drmFreeDevices(struct drmDevice *devices[], int count);
-EOF
-
-  clang2py --clang-args="-I/usr/lib/clang/20/include" drm_stub.h -l/usr/lib/libdrm.so.2 -o "$BASE/drm.py"
-
-  rm drm_stub.h
+  clang -E -I/usr/include -I/usr/include/libdrm /usr/include/xf86drm.h -o xf86drm.preprocessed.c
+  clang2py xf86drm.preprocessed.c -l/usr/lib/libdrm.so.2 -k cdefstum -o $BASE/drm.py
+  sed -i "s|('func', )|('func', ctypes.c_int32)|" $BASE/drm.py
+  sed -i "s|('flags', )|('flags', ctypes.c_uint32)|" $BASE/drm.py
+  python3 -c "import tinygrad.runtime.autogen.drm"
 }
 
 if [ "$1" == "opencl" ]; then generate_opencl
