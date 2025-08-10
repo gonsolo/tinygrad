@@ -113,11 +113,15 @@ class NakRenderer(Renderer):
     nir_vars = {}
     deref_instrs = {}
 
+    #for uop in uops:
+    #    print(uop)
+    #sys.exit()
+
     for uop in uops:
       if uop.op == Ops.DEFINE_GLOBAL:
         var_type = uop.dtype
         var_binding = uop.arg
-        var_size = var_type.count
+        #var_size = var_type.count
 
         if var_type.base == dtypes.int:
           glsl_base_type = mesa3d.glsl_int_type()
@@ -126,7 +130,7 @@ class NakRenderer(Renderer):
         else:
           raise NotImplementedError(f"Unsupported dtype: {var_type.base}")
 
-        nir_type = mesa3d.glsl_array_type(glsl_base_type, var_size, 0)
+        nir_type = mesa3d.glsl_array_type(glsl_base_type, 0, 4)
         nir_var = mesa3d.nir_variable_create(builder.shader,
                                              mesa3d.nir_var_mem_ssbo,
                                              nir_type,
@@ -170,6 +174,7 @@ class NakRenderer(Renderer):
         index_def = self._get_or_create_ssa_def(index_uop, builder, ssa_defs, deref_instrs, nir_vars)
 
         ssbo_deref = mesa3d.nir_build_deref_var(builder, ssbo_var)
+        #deref_instr = mesa3d.nir_build_deref_ptr_as_array(builder, ssbo_deref, index_def)
         deref_instr = mesa3d.nir_build_deref_array(builder, ssbo_deref, index_def)
 
         deref_instrs[uop] = deref_instr
@@ -286,42 +291,24 @@ class NakCompiler(Compiler):
         nak_compiler = mesa3d.nak_compiler_create(info)
         print("NAK Compiler created successfully!")
 
-        # Pass to lower variables to SSA form. This is the crucial step.
+        #mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno())
+
+        mesa3d.nak_preprocess_nir(builder.shader, nak_compiler)
+
+        #mesa3d.nir_lower_io(builder.shader)
         mesa3d.nir_lower_vars_to_ssa(builder.shader)
         
-        # After lowering, run cleanup and optimization passes.
+        # From nvk_lower_nir:
+        mesa3d.nir_lower_explicit_io_ssbo_simple(builder.shader)
+
         mesa3d.nir_opt_dce(builder.shader)
         mesa3d.nir_opt_algebraic(builder.shader)
         mesa3d.nir_opt_constant_folding(builder.shader)
-
-        #NIR_PASS(_, nir, nir_lower_variable_initializers, nir_var_function_temp);
-        #NIR_PASS(_, nir, nir_lower_returns);
-        #NIR_PASS(_, nir, nir_inline_functions);
-        #NIR_PASS(_, nir, nir_opt_deref);
-
-        #NIR_PASS(_, nir, nir_lower_vars_to_ssa);
-        #NIR_PASS(_, nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
-        #NIR_PASS(_, nir, nir_copy_prop);
-        #NIR_PASS(_, nir, nir_opt_dce);
-        #NIR_PASS(_, nir, nir_opt_cse);
-        #NIR_PASS(_, nir, nir_opt_gcm, true);
-
-        #nir_opt_peephole_select_options peephole_select_options = {};
-        #peephole_select_options.limit = 1;
-        #NIR_PASS(_, nir, nir_opt_peephole_select, &peephole_select_options);
-        #NIR_PASS(_, nir, nir_opt_dce);
-
 
         nak_bin_struct_ptr = mesa3d.nak_compile_shader(builder.shader, dump_asm, nak_compiler, robust2_modes, fs_key)
 
     else:
         print("\nNo suitable Nouveau device found. Cannot create NAK compiler.")
-
-
-    # Convert the C struct into a Python bytes object
-    # This step is critical and depends on the struct's layout.
-    # For a struct with a size and a pointer to the binary, it would look like this:
-    # binary_data = bytes(nak_bin_struct_ptr.binary_ptr, nak_bin_struct_ptr.size)
 
     compiled_binary = b"actual_compiled_binary"
 
