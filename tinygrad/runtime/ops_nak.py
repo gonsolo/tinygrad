@@ -26,17 +26,29 @@ from tinygrad.runtime.autogen.drm import drmGetDevices2, drmFreeDevices, struct_
 DRM_NODE_RENDER = 2
 DRM_BUS_PCI = 0
 
-# You might need to adjust this depending on how mesa3d._drmDevice is actually defined or aliased
-# If the pybind11 binding expects a specific type for the 'drm_device' argument,
-# this alias might still be needed, but it depends on the pybind11 side.
-# If nouveau_ws_device_new_wrapper in C++ takes uintptr_t, then this Python alias is not needed.
-# mesa3d._drmDevice = struct__drmDevice # This line is likely not needed if using uintptr_t in C++ wrapper
+import os
+
+class MockNouveauDevice:
+    def __init__(self, chipset_id, device_id):
+        self.info = MockNouveauDeviceInfo(chipset_id, device_id)
+        self.vendor_id = 0x10de
+
+class MockNouveauDeviceInfo:
+    def __init__(self, chipset_id, device_id):
+        self.chipset = chipset_id
+        self.device_id = device_id
+        self.vendor_id = 0x10de
 
 def find_drm_devices():
     """
     Finds and returns the first suitable Nouveau device.
     Returns the nouveau_ws_device object or None if not found.
     """
+    if os.getenv("MOCK_NOUVEAU_DEVICE") == "rtx3060":
+        print("MOCK_NOUVEAU_DEVICE environment variable is set. Returning a mock RTX 3060.")
+        # Mocking an RTX 3060
+        return MockNouveauDevice(chipset_id=0x170, device_id=0x2503)
+
     # Allocate space for device pointers
     MAX_DEVICES = 64
     devices_ptr_array_type = ctypes.POINTER(struct__drmDevice) * MAX_DEVICES
