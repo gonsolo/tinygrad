@@ -295,11 +295,13 @@ class NakCompiler(Compiler):
 
         mesa3d.nak_preprocess_nir(builder.shader, nak_compiler)
 
-        #mesa3d.nir_lower_io(builder.shader)
-        mesa3d.nir_lower_vars_to_ssa(builder.shader)
-        
         # From nvk_lower_nir:
-        mesa3d.nir_lower_explicit_io_ssbo_simple(builder.shader)
+        #mesa3d.nir_lower_io(builder.shader)
+        #mesa3d.nir_lower_vars_to_ssa(builder.shader)
+
+        TODO: mesa3d.nir_lower_explicit_io(builder.shader, mesa3d.NIR_VAR_MEM_SSBO, mesa3d.NIR_ADDRESS_FORMAT_64BIT_GLOBAL)
+
+        #mesa3d.nir_lower_explicit_io_ssbo_simple(builder.shader)
 
         mesa3d.nir_opt_dce(builder.shader)
         mesa3d.nir_opt_algebraic(builder.shader)
