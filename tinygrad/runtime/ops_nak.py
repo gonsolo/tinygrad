@@ -303,22 +303,17 @@ class NakCompiler(Compiler):
         nak_compiler = mesa3d.nak_compiler_create(info)
         print("NAK Compiler created successfully!")
 
-        #mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno())
+        mesa3d.nir_print_shader(builder.shader, sys.stdout.fileno())
 
+        print("Preprocessing")
         mesa3d.nak_preprocess_nir(builder.shader, nak_compiler)
 
-        # From nvk_lower_nir:
-        #mesa3d.nir_lower_io(builder.shader)
-        #mesa3d.nir_lower_vars_to_ssa(builder.shader)
 
-        TODO: mesa3d.nir_lower_explicit_io(builder.shader, mesa3d.NIR_VAR_MEM_SSBO, mesa3d.NIR_ADDRESS_FORMAT_64BIT_GLOBAL)
+        # nak_postprocess_nir TODO
+        #mesa3d.tinygrad_lower_nir(builder.shader)
 
-        #mesa3d.nir_lower_explicit_io_ssbo_simple(builder.shader)
-
-        mesa3d.nir_opt_dce(builder.shader)
-        mesa3d.nir_opt_algebraic(builder.shader)
-        mesa3d.nir_opt_constant_folding(builder.shader)
-
+        # In nvk_compile_nir:
+        print("Compiling")
         nak_bin_struct_ptr = mesa3d.nak_compile_shader(builder.shader, dump_asm, nak_compiler, robust2_modes, fs_key)
 
     else:
