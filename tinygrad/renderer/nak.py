@@ -1,17 +1,27 @@
-# renderer/nak.py
-
 import ctypes
 import mesa3d
-import uuid
 import sys
+import uuid
+from tinygrad.dtype import dtypes, PtrDType
 from tinygrad.renderer import Renderer
-from tinygrad.dtype import dtypes
-from tinygrad.uop.ops import Ops, UOp
+from tinygrad.uop.ops import Ops, UOp, PatternMatcher, UPat
 
 _nak_nir_cache = {}
 
+nak_matcher = PatternMatcher([
+  ## This pattern correctly handles Ops.INDEX and rewrites it as a low-level address calculation.
+  ## The result of this lambda is a single UOp that will be the new source for the Ops.LOAD.
+  #(UPat(Ops.INDEX, src=(UPat.var("buf"), UPat.var("idx"))),
+  #  lambda buf, idx: buf + (idx.cast(dtypes.int32) * buf.dtype.itemsize)
+  #),
+  ## This pattern removes redundant Ops.CAST on pointers.
+  #(UPat(Ops.CAST, name="x"),
+  #  lambda x: x.src[0] if isinstance(x.dtype, PtrDType) else None)
+])
+
 class NakRenderer(Renderer):
   device = "NAK"
+  extra_matcher = nak_matcher
 
   def render(self, uops: list) -> str:
     stage = mesa3d.gl_shader_stage.COMPUTE
