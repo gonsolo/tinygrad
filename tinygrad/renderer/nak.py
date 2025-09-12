@@ -9,155 +9,63 @@ from tinygrad.uop.ops import Ops, UOp, PatternMatcher, UPat
 _nak_nir_cache = {}
 
 nak_matcher = PatternMatcher([
-  ## This pattern correctly handles Ops.INDEX and rewrites it as a low-level address calculation.
-  ## The result of this lambda is a single UOp that will be the new source for the Ops.LOAD.
-  #(UPat(Ops.INDEX, src=(UPat.var("buf"), UPat.var("idx"))),
-  #  lambda buf, idx: buf + (idx.cast(dtypes.int32) * buf.dtype.itemsize)
-  #),
-  ## This pattern removes redundant Ops.CAST on pointers.
-  #(UPat(Ops.CAST, name="x"),
-  #  lambda x: x.src[0] if isinstance(x.dtype, PtrDType) else None)
+    # empty for now
 ])
+
+string_rewrite = PatternMatcher([
+    (UPat(Ops.DEFINE_GLOBAL, name="x"), lambda x: print("bla")),
+])
+
+#  if uop.op == Ops.DEFINE_GLOBAL:
+#        var_type = uop.dtype
+#        var_binding = uop.arg
+#
+#        if var_type.base == dtypes.int:
+#          glsl_base_type = mesa3d.glsl_int_type()
+#        elif var_type.base == dtypes.float:
+#          glsl_base_type = mesa3d.glsl_float_type()
+#        else:
+#          raise NotImplementedError(f"Unsupported dtype: {var_type.base}")
+#
+#        nir_type = mesa3d.glsl_array_type(glsl_base_type, 0, 4)
+#        nir_var = mesa3d.nir_variable_create(builder.shader,
+#                                             mesa3d.nir_var_mem_ssbo,
+#                                             nir_type,
+#                                             f"ssbo_var_{var_binding}")
+#        nir_var.data.binding = var_binding
+#        nir_var.data.explicit_binding = True
+#        nir_vars[var_binding] = nir_var
 
 class NakRenderer(Renderer):
   device = "NAK"
   extra_matcher = nak_matcher
 
-  def render(self, uops: list) -> str:
-    stage = mesa3d.gl_shader_stage.COMPUTE
-    options = mesa3d.nir_shader_compiler_options()
-    builder = mesa3d.nir_builder_init_simple_shader(stage, options, "simple")
+  def __init__(self):
+    super().__init__()
+    self.ssa_defs = {}
+    self.nir_vars = {}
+    self.deref_instrs = {}
+    self.stage = mesa3d.gl_shader_stage.COMPUTE
+    self.options = mesa3d.nir_shader_compiler_options()
+    self.builder = mesa3d.nir_builder_init_simple_shader(self.stage, self.options, "simple")
     mesa3d.glsl_type_singleton_init_or_ref()
 
-    ssa_defs = {}
-    nir_vars = {}
-    deref_instrs = {}
+  def render(self, uops: list) -> str:
+    self.ssa_defs.clear()
+    self.nir_vars.clear()
 
     for uop in uops:
-      if uop.op == Ops.DEFINE_GLOBAL:
-        var_type = uop.dtype
-        var_binding = uop.arg
+      if uop.op is Ops.NOOP:
+        continue
+      
+      result = string_rewrite.rewrite(uop, ctx=self)
+      
+      if result is None:
+        raise RuntimeError(f"Failed to generate NIR for {uop.op}")
+      
+      if uop.op == Ops.SINK:
+        return result
+    
+    raise RuntimeError("No SINK operation found to finalize the NIR generation.")
 
-        if var_type.base == dtypes.int:
-          glsl_base_type = mesa3d.glsl_int_type()
-        elif var_type.base == dtypes.float:
-          glsl_base_type = mesa3d.glsl_float_type()
-        else:
-          raise NotImplementedError(f"Unsupported dtype: {var_type.base}")
 
-        nir_type = mesa3d.glsl_array_type(glsl_base_type, 0, 4)
-        nir_var = mesa3d.nir_variable_create(builder.shader,
-                                             mesa3d.nir_var_mem_ssbo,
-                                             nir_type,
-                                             f"ssbo_var_{var_binding}")
-        nir_var.data.binding = var_binding
-        nir_var.data.explicit_binding = True
-        nir_vars[var_binding] = nir_var
-
-      elif uop.op == Ops.SINK:
-        store_uop = uop.src[0]
-        if store_uop.op != Ops.STORE:
-            raise ValueError("SINK UOp's source is not a STORE operation.")
-
-        dst_uop = store_uop.src[0]
-        src_uop = store_uop.src[1]
-
-        dst_deref = self._get_or_create_deref_instr(dst_uop, builder, deref_instrs, nir_vars, ssa_defs)
-        src_def = self._get_or_create_ssa_def(src_uop, builder, ssa_defs, deref_instrs, nir_vars)
-
-        mesa3d.nir_store_deref(builder, dst_deref, src_def, 0xff)
-        
-        nak_nir_id = str(uuid.uuid4())
-        _nak_nir_cache[nak_nir_id] = {'builder': builder, 'options': options}
-        return nak_nir_id
-
-  def _get_or_create_deref_instr(self, uop, builder, deref_instrs, nir_vars, ssa_defs):
-    deref_instr = deref_instrs.get(uop)
-    if deref_instr is not None:
-        return deref_instr
-
-    if uop.op == Ops.INDEX:
-        ssbo_uop = uop.src[0]
-        index_uop = uop.src[1]
-
-        ssbo_var = nir_vars.get(ssbo_uop.arg)
-        if ssbo_var is None:
-            raise ValueError(f"SSBO variable for binding {ssbo_uop.arg} not found.")
-
-        index_def = self._get_or_create_ssa_def(index_uop, builder, ssa_defs, deref_instrs, nir_vars)
-
-        ssbo_deref = mesa3d.nir_build_deref_var(builder, ssbo_var)
-        deref_instr = mesa3d.nir_build_deref_array(builder, ssbo_deref, index_def)
-
-        deref_instrs[uop] = deref_instr
-        return deref_instr
-    else:
-        raise NotImplementedError(f"Unsupported UOp type for dereference: {uop.op}")
-
-  def _get_or_create_ssa_def(self, uop, builder, ssa_defs, deref_instrs, nir_vars):
-    ssa_def = ssa_defs.get(uop)
-    if ssa_def is not None:
-        return ssa_def
-
-    if uop.op == Ops.CONST:
-        const_val = uop.arg
-        const_dtype = uop.dtype
-        if const_dtype == dtypes.int:
-            ssa_def = mesa3d.nir_imm_int(builder, int(const_val))
-        elif const_dtype == dtypes.float:
-            ssa_def = mesa3d.nir_imm_float(builder, float(const_val))
-        else:
-            raise NotImplementedError(f"Unsupported constant type: {const_dtype}")
-
-    elif uop.op == Ops.ADD:
-        src_defs = [self._get_or_create_ssa_def(src, builder, ssa_defs, deref_instrs, nir_vars) for src in uop.src]
-        ssa_def = mesa3d.nir_iadd(builder, src_defs[0], src_defs[1])
-
-    elif uop.op == Ops.MUL:
-        src_defs = [self._get_or_create_ssa_def(src, builder, ssa_defs, deref_instrs, nir_vars) for src in uop.src]
-        ssa_def = mesa3d.nir_imul(builder, src_defs[0], src_defs[1])
-
-    elif uop.op == Ops.LOAD:
-        deref_chain = self._get_or_create_deref_instr(uop.src[0], builder, deref_instrs, nir_vars, ssa_defs)
-        ssa_def = mesa3d.nir_load_deref(builder, deref_chain)
-
-    elif uop.op == Ops.SPECIAL:
-        src_defs = [self._get_or_create_ssa_def(src, builder, ssa_defs, deref_instrs, nir_vars) for src in uop.src]
-
-        if isinstance(uop.arg, tuple) and uop.arg[0] == 'lidx0':
-            lidx_def = mesa3d.nir_load_local_invocation_id(builder)
-            print(f"gonsolo lidx0 channel index: {uop.arg[1]}")
-            ssa_def = mesa3d.nir_channel(builder, lidx_def, uop.arg[1])
-        elif isinstance(uop.arg, tuple) and uop.arg[0] == 'gidx0':
-            global_shape = ...
-            gidx_def = mesa3d.nir_load_global_invocation_id(builder, 32)
-            ssa_def = mesa3d.nir_channel(builder, gidx_def, 0)
-            for i in range(1, len(global_shape)):
-                current_id = None
-                if i < 3:
-                    current_id = mesa3d.nir_channel(builder, gidx_def, i)
-                else:
-                    current_id = mesa3d.nir_imm_int(builder, 0)
-
-                ssa_def = mesa3d.nir_imul_imm(builder, ssa_def, global_shape[i])
-                ssa_def = mesa3d.nir_iadd(builder, ssa_def, current_id)
-        else:
-            raise NotImplementedError(f"Handling for SPECIAL UOp with arg '{uop.arg}' is not yet implemented.")
-
-    elif uop.op == Ops.WHERE:
-        cond_def = self._get_or_create_ssa_def(uop.src[0], builder, ssa_defs, deref_instrs, nir_vars)
-        true_def = self._get_or_create_ssa_def(uop.src[1], builder, ssa_defs, deref_instrs, nir_vars)
-        false_def = self._get_or_create_ssa_def(uop.src[2], builder, ssa_defs, deref_instrs, nir_vars)
-
-        bool_cond = mesa3d.nir_ine_imm(builder, cond_def, 0)
-        ssa_def = mesa3d.nir_bcsel(builder, bool_cond, true_def, false_def)
-
-    elif uop.op == Ops.CMPLT:
-        src_defs = [self._get_or_create_ssa_def(src, builder, ssa_defs, deref_instrs, nir_vars) for src in uop.src]
-        ssa_def = mesa3d.nir_ilt(builder, src_defs[0], src_defs[1])
-
-    else:
-        raise NotImplementedError(f"Unsupported UOp type: {uop.op}")
-
-    ssa_defs[uop] = ssa_def
-    return ssa_def
